@@ -59,6 +59,16 @@
             "Greg Hilld"
         ],
         "poster": "https://upload.wikimedia.org/wikipedia/uk/0/08/Civil_War_2024_film_poster.jpg"
+    },
+    {
+        "name": "vlad",
+        "description": "dsadsa",
+        "rating": 10.0,
+        "genre": "dsadsa",
+        "actors": [
+            "vlad",
+            "lipinskyi"
+        ],
+        "poster": "https://specials-images.forbesimg.com/imageserve/5ed6636cdd5d320006caf841/960x0.jpg"
     }
 ]
-
