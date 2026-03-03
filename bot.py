@@ -3,19 +3,20 @@ import logging
 import sys
 
 # from os import getenv
-from aiogram import Bot, Dispatcher, html
+from aiogram import Bot, Dispatcher, html, Router, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from keyboards import films_keyboard_markup, FilmCallback
-from data import get_films
+from data import get_films, add_film, delete_film
 from aiogram import F
 from models import Film
 from aiogram.types import URLInputFile
-from data import get_films, add_film
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+
+router = Router()
 
 # from "./.env" import BOT_TOKEN as TOKEN
 from dotenv import load_dotenv
@@ -25,6 +26,9 @@ from commands import (
     START_COMMAND,
     FILM_CREATE_COMMAND,
     BOT_COMMANDS,
+    FILM_SEARCH_COMMAND,
+    FILM_FILTER_COMMAND,
+    FILM_DELETE_COMMAND,
 )
 
 # print(films_keyboard_markup([{'name': "Harry Potter and the Philosopher's Stone", 'description': "Harry Potter and the Philosopher's Stone (also known as Harry Potter and the Sorcerer's Stone in the United States) is a 2001 fantasy film directed by Chris Columbus and produced by David Heyman, from a screenplay by Steve Kloves, based on the 1997 novel of the same name by J. K. Rowling. It is the first instalment in the Harry Potter film series. The film stars Daniel Radcliffe as Harry Potter, with Rupert Grint as Ron Weasley, and Emma Watson as Hermione Granger. Its story follows Harry's first year at Hogwarts School of Witchcraft and Wizardry as he discovers that he is a famous wizard and begins his formal wizarding education.", 'rating': 7.1, 'genre': 'Fantasy', 'actors': ['Daniel Radcliffe', 'Rupert Grint', 'Emma Watson', 'John Cleese', 'Robbie Coltrane', 'Warwick Davis', 'Richard Griffiths', 'Richard Harris', 'Ian Hart', 'John Hurt', 'Alan Rickman', 'Fiona Shaw', 'Maggie Smith', 'Julie Walters'], 'poster': 'https://upload.wikimedia.org/wikipedia/en/7/7a/Harry_Potter_and_the_Philosopher%27s_Stone_banner.jpg'}], 2, 0))
@@ -54,13 +58,13 @@ dp = Dispatcher()
 async def main() -> None:
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     await bot.set_my_commands(BOT_COMMANDS)
-
+    dp.include_router(router)
     try:
         await dp.start_polling(bot)
     finally:
         await bot.session.close()
 
-
+# /start
 @dp.message(START_COMMAND)
 async def start(message: Message) -> None:
     await message.answer(
@@ -68,7 +72,7 @@ async def start(message: Message) -> None:
         "Я перший бот Python розробника Владислава Ліпінського."
     )
 
-
+# /films
 @dp.message(FILMS_COMMAND)
 async def films(message: Message) -> None:
     data = get_films()
@@ -95,7 +99,7 @@ async def callb_film(callback: CallbackQuery, callback_data: FilmCallback) -> No
 
     await callback.message.answer_photo(photo=film.poster, caption=text)
 
-
+# /create_movie
 class FilmForm(StatesGroup):
     name = State()
     description = State()
@@ -103,7 +107,6 @@ class FilmForm(StatesGroup):
     genre = State()
     actors = State()
     poster = State()
-
 
 @dp.message(FILM_CREATE_COMMAND)
 async def film_create(message: Message, state: FSMContext) -> None:
@@ -175,6 +178,77 @@ async def film_poster(message: Message, state: FSMContext) -> None:
         f"Фільм {film.name} успішно додано!",
         reply_markup=ReplyKeyboardRemove(),
     )
+
+# /search_movie
+class MovieStates(StatesGroup):
+    search_query = State()
+    filter_criteria = State()
+    delete_query = State()
+    edit_query = State()
+    edit_description = State()
+
+@router.message(FILM_SEARCH_COMMAND)
+async def search_movie(message: types.Message, state: FSMContext):
+    await message.answer("Введіть назву фільму для пошуку:")
+    await state.set_state(MovieStates.search_query)
+
+@router.message(MovieStates.search_query)
+async def get_search_query(message: types.Message, state: FSMContext):
+    query = message.text.lower()
+    films = get_films()
+    results = [film for film in films if query in film['name'].lower()]
+
+    if results:
+        for film in results:
+            await message.answer(
+                f"Знайдено: {film['name']} - {film['description']}"
+            )
+    else:
+        await message.answer("Фільм не знайдено.")
+    
+    await state.clear()
+
+# /filter_movies
+@router.message(FILM_FILTER_COMMAND)
+async def filter_movies(message: types.Message, state: FSMContext):
+    await message.answer("Введіть жанр або рік випуску для фільтрації:")
+    await state.set_state(MovieStates.filter_criteria)
+
+@router.message(MovieStates.filter_criteria)
+async def get_filter_criteria(message: types.Message, state: FSMContext):
+    criteria = message.text.lower()
+
+    films = get_films() 
+    filtered = [
+        film for film in films
+        if criteria in film['genre'].lower()
+        or str(film.get('year', '')) == criteria
+    ]
+
+    if filtered:
+        for film in filtered:
+            await message.answer(
+                f"Знайдено: {film['name']} - {film['description']}"
+            )
+    else:
+        await message.answer("Фільм не знайдено за цими критеріями.")
+
+    await state.clear()
+
+# /delete_movie
+@router.message(FILM_DELETE_COMMAND)
+async def delete_movie(message: types.Message, state: FSMContext):
+    await message.answer("Введіть назву фільму, який бажаєте видалити:")
+    await state.set_state(MovieStates.delete_query)
+
+@router.message(MovieStates.delete_query)
+async def get_delete_query(message: types.Message, state: FSMContext):
+    film_to_delete = message.text
+
+    delete_film(film_to_delete)
+
+    await message.answer("Якщо фільм існував — його видалено.")
+    await state.clear()
 
 # Запуск
 if __name__ == "__main__":

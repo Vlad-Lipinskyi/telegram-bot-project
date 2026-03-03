@@ -9,7 +9,6 @@ def get_films(
             return films[film_id]
         return films
 
-
 def add_film(
     film: dict,
     file_path: str = "data.json",
@@ -24,3 +23,12 @@ def add_film(
                 indent=4,
                 ensure_ascii=False,
             )
+
+def delete_film(name: str):
+    with open("data.json", "r", encoding="utf-8") as f:
+        films = json.load(f)
+
+    films = [film for film in films if film["name"].lower() != name.lower()]
+
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(films, f, ensure_ascii=False, indent=4)
