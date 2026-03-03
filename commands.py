@@ -15,6 +15,9 @@ FILM_CREATE_COMMAND = Command("create_film")
 FILM_SEARCH_COMMAND = Command("search_movie")
 FILM_FILTER_COMMAND = Command("filter_movies")
 FILM_DELETE_COMMAND = Command("delete_movie")
+FILM_EDIT_COMMAND = Command("edit_movie")
+FILM_RATE_COMMAND = Command("rate_movie")
+FILM_RECOMMEND_COMMAND = Command("recommend_movie")
 
 BOT_COMMANDS = [
     BotCommand(command="films", description="Перегляд списку фільмів"),
@@ -23,4 +26,7 @@ BOT_COMMANDS = [
     BotCommand(command="search_movie", description="Пошук фільму"),
     BotCommand(command="filter_movies", description="Фільтрація фільмів"),
     BotCommand(command="delete_movie", description="Видалення фільму"),
+    BotCommand(command="edit_movie", description="Редагування фільму"),
+    BotCommand(command="rate_movie", description="Оцінити фільм"),
+    BotCommand(command="recommend_movie", description="Рекоминдайційний фільм"),
 ]

@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from keyboards import films_keyboard_markup, FilmCallback
-from data import get_films, add_film, delete_film
+from data import get_films, add_film, delete_film, save_films
 from aiogram import F
 from models import Film
 from aiogram.types import URLInputFile
@@ -29,6 +29,9 @@ from commands import (
     FILM_SEARCH_COMMAND,
     FILM_FILTER_COMMAND,
     FILM_DELETE_COMMAND,
+    FILM_EDIT_COMMAND,
+    FILM_RATE_COMMAND,
+    FILM_RECOMMEND_COMMAND,
 )
 
 # print(films_keyboard_markup([{'name': "Harry Potter and the Philosopher's Stone", 'description': "Harry Potter and the Philosopher's Stone (also known as Harry Potter and the Sorcerer's Stone in the United States) is a 2001 fantasy film directed by Chris Columbus and produced by David Heyman, from a screenplay by Steve Kloves, based on the 1997 novel of the same name by J. K. Rowling. It is the first instalment in the Harry Potter film series. The film stars Daniel Radcliffe as Harry Potter, with Rupert Grint as Ron Weasley, and Emma Watson as Hermione Granger. Its story follows Harry's first year at Hogwarts School of Witchcraft and Wizardry as he discovers that he is a famous wizard and begins his formal wizarding education.", 'rating': 7.1, 'genre': 'Fantasy', 'actors': ['Daniel Radcliffe', 'Rupert Grint', 'Emma Watson', 'John Cleese', 'Robbie Coltrane', 'Warwick Davis', 'Richard Griffiths', 'Richard Harris', 'Ian Hart', 'John Hurt', 'Alan Rickman', 'Fiona Shaw', 'Maggie Smith', 'Julie Walters'], 'poster': 'https://upload.wikimedia.org/wikipedia/en/7/7a/Harry_Potter_and_the_Philosopher%27s_Stone_banner.jpg'}], 2, 0))
@@ -185,7 +188,9 @@ class MovieStates(StatesGroup):
     filter_criteria = State()
     delete_query = State()
     edit_query = State()
+    edit_field = State()
     edit_description = State()
+    edit_poster = State()
 
 @router.message(FILM_SEARCH_COMMAND)
 async def search_movie(message: types.Message, state: FSMContext):
@@ -249,6 +254,155 @@ async def get_delete_query(message: types.Message, state: FSMContext):
 
     await message.answer("Якщо фільм існував — його видалено.")
     await state.clear()
+
+# /edit_movie
+@router.message(FILM_EDIT_COMMAND)
+async def edit_movie(message: types.Message, state: FSMContext):
+    await message.answer("Введіть назву фільму, який бажаєте редагувати:")
+    await state.set_state(MovieStates.edit_query)
+
+
+@router.message(MovieStates.edit_query)
+async def get_edit_query(message: types.Message, state: FSMContext):
+    film_to_edit = message.text.lower()
+    films = get_films()
+
+    for film in films:
+        if film_to_edit == film["name"].lower():
+            await state.update_data(film_name=film["name"])
+            await message.answer(
+                "Що ви хочете змінити?\n"
+                "1 - Опис\n"
+                "2 - Постер"
+            )
+            await state.set_state(MovieStates.edit_field)
+            return
+
+    await message.answer("Фільм не знайдено.")
+    await state.clear()
+
+@router.message(MovieStates.edit_field)
+async def choose_field(message: types.Message, state: FSMContext):
+    if message.text == "1":
+        await message.answer("Введіть новий опис:")
+        await state.set_state(MovieStates.edit_description)
+    elif message.text == "2":
+        await message.answer("Введіть новий лінк на постер:")
+        await state.set_state(MovieStates.edit_poster)
+    else:
+        await message.answer("Введіть 1 або 2.")
+
+@router.message(MovieStates.edit_description)
+async def update_description(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    film_name = data["film_name"]
+
+    films = get_films()
+
+    for film in films:
+        if film["name"] == film_name:
+            film["description"] = message.text
+            break
+
+    save_films(films)
+
+    await message.answer("Опис оновлено.")
+    await state.clear()
+
+@router.message(MovieStates.edit_poster)
+async def update_poster(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    film_name = data["film_name"]
+
+    films = get_films()
+
+    for film in films:
+        if film["name"] == film_name:
+            film["poster"] = message.text
+            break
+
+    save_films(films)
+
+    await message.answer("Постер оновлено.")
+    await state.clear()
+
+# /rate_movie
+class MovieRatingStates(StatesGroup):
+    rate_query = State()
+    set_rating = State()
+
+@router.message(FILM_RATE_COMMAND)
+async def rate_movie(message: types.Message, state: FSMContext):
+    await message.answer("Введіть назву фільму, щоб оцінити:")
+    await state.set_state(MovieRatingStates.rate_query)
+
+
+@router.message(MovieRatingStates.rate_query)
+async def get_rate_query(message: types.Message, state: FSMContext):
+    film_to_rate = message.text.lower()
+    films = get_films()
+
+    for film in films:
+        if film_to_rate == film["name"].lower():
+            await state.update_data(film_name=film["name"])
+            await message.answer("Введіть рейтинг від 1 до 10:")
+            await state.set_state(MovieRatingStates.set_rating)
+            return
+
+    await message.answer("Фільм не знайдено.")
+    await state.clear()
+
+
+@router.message(MovieRatingStates.set_rating)
+async def set_rating(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    film_name = data["film_name"]
+
+    try:
+        rating = int(message.text)
+
+        if 1 <= rating <= 10:
+            films = get_films()
+
+            for film in films:
+                if film["name"] == film_name:
+                    film["rating"] = rating
+                    break
+
+            save_films(films)
+
+            await message.answer(
+                f"Рейтинг для '{film_name}' оновлено на {rating}."
+            )
+            await state.clear()
+        else:
+            await message.answer("Введіть рейтинг від 1 до 10.")
+
+    except ValueError:
+        await message.answer("Введіть число.")
+
+# /recommend_movie
+@router.message(FILM_RECOMMEND_COMMAND)
+async def recommend_movie(message: types.Message):
+    films = get_films()
+
+    rated_films = [
+        film for film in films
+        if film.get("rating") is not None
+    ]
+
+    if rated_films:
+        recommended = max(rated_films, key=lambda film: film["rating"])
+
+        await message.answer(
+            f"Рекомендуємо переглянути:\n"
+            f"{recommended['name']} - {recommended['description']}\n"
+            f"(Рейтинг: {recommended['rating']})"
+        )
+    else:
+        await message.answer(
+            "Немає фільмів з рейтингом для рекомендації."
+        )
 
 # Запуск
 if __name__ == "__main__":
