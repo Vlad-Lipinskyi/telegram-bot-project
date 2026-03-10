@@ -15,7 +15,6 @@ from models import Film
 from aiogram.types import URLInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-import logging
 
 router = Router()
 
@@ -39,12 +38,15 @@ from commands import (
 
 load_dotenv()
 
+# логування
+logging.basicConfig(filename='bot.log', level=logging.INFO)
+
 # Bot token can be obtained via https://t.me/BotFather
 TOKEN = getenv("BOT_TOKEN")
 # All handlers should be attached to the Router (or Dispatcher)
 dp = Dispatcher()
 
-# @dp.message(CommandStart())
+# @router.message(CommandStart())
 # async def command_start_handler(message: Message) -> None:
 #     """
 #     This handler receives messages with `/start` command
@@ -60,6 +62,7 @@ dp = Dispatcher()
 
 async def main() -> None:
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    print("Bot started...")
     await bot.set_my_commands(BOT_COMMANDS)
     dp.include_router(router)
     try:
@@ -68,15 +71,25 @@ async def main() -> None:
         await bot.session.close()
 
 # /start
-@dp.message(START_COMMAND)
+@router.message(CommandStart)
 async def start(message: Message) -> None:
     await message.answer(
         f"Вітаю, {message.from_user.full_name}!\n"
         "Я перший бот Python розробника Владислава Ліпінського."
     )
 
+async def add_movie(message: types.Message):
+    logging.info(
+        f"User {message.from_user.username} викликав команду start"
+    )
+
+
+@router.message()
+async def debug(message: Message):
+    print("MESSAGE:", message.text)
+
 # /films
-@dp.message(FILMS_COMMAND)
+@router.message(FILMS_COMMAND)
 async def films(message: Message) -> None:
     data = get_films()
     markup = films_keyboard_markup(films_list=data)
@@ -86,7 +99,7 @@ async def films(message: Message) -> None:
     )
 
 
-@dp.callback_query(FilmCallback.filter())
+@router.callback_query(FilmCallback.filter())
 async def callb_film(callback: CallbackQuery, callback_data: FilmCallback) -> None:
     film_id = callback_data.id
     film_data = get_films(film_id=film_id)
@@ -111,7 +124,7 @@ class FilmForm(StatesGroup):
     actors = State()
     poster = State()
 
-@dp.message(FILM_CREATE_COMMAND)
+@router.message(FILM_CREATE_COMMAND)
 async def film_create(message: Message, state: FSMContext) -> None:
     await state.set_state(FilmForm.name)
     await message.answer(
@@ -120,7 +133,7 @@ async def film_create(message: Message, state: FSMContext) -> None:
     )
 
 
-@dp.message(FilmForm.name)
+@router.message(FilmForm.name)
 async def film_name(message: Message, state: FSMContext) -> None:
     await state.update_data(name=message.text)
     await state.set_state(FilmForm.description)
@@ -130,7 +143,7 @@ async def film_name(message: Message, state: FSMContext) -> None:
     )
 
 
-@dp.message(FilmForm.description)
+@router.message(FilmForm.description)
 async def film_description(message: Message, state: FSMContext) -> None:
     await state.update_data(description=message.text)
     await state.set_state(FilmForm.rating)
@@ -140,7 +153,7 @@ async def film_description(message: Message, state: FSMContext) -> None:
     )
 
 
-@dp.message(FilmForm.rating)
+@router.message(FilmForm.rating)
 async def film_rating(message: Message, state: FSMContext) -> None:
     await state.update_data(rating=float(message.text))
     await state.set_state(FilmForm.genre)
@@ -150,7 +163,7 @@ async def film_rating(message: Message, state: FSMContext) -> None:
     )
 
 
-@dp.message(FilmForm.genre)
+@router.message(FilmForm.genre)
 async def film_genre(message: Message, state: FSMContext) -> None:
     await state.update_data(genre=message.text)
     await state.set_state(FilmForm.actors)
@@ -161,7 +174,7 @@ async def film_genre(message: Message, state: FSMContext) -> None:
     )
 
 
-@dp.message(FilmForm.actors)
+@router.message(FilmForm.actors)
 async def film_actors(message: Message, state: FSMContext) -> None:
     await state.update_data(actors=[x for x in message.text.split(", ")])
     await state.set_state(FilmForm.poster)
@@ -171,7 +184,7 @@ async def film_actors(message: Message, state: FSMContext) -> None:
     )
 
 
-@dp.message(FilmForm.poster)
+@router.message(FilmForm.poster)
 async def film_poster(message: Message, state: FSMContext) -> None:
     data = await state.update_data(poster=message.text)
     film = Film(**data)
@@ -403,15 +416,6 @@ async def recommend_movie(message: types.Message):
         await message.answer(
             "Немає фільмів з рейтингом для рекомендації."
         )
-
-# логування
-logging.basicConfig(filename='bot.log', level=logging.INFO)
-
-@router.message(Command("start"))
-async def add_movie(message: types.Message):
-    logging.info(
-        f"User {message.from_user.username} викликав команду start"
-    )
 
 # Запуск
 if __name__ == "__main__":
