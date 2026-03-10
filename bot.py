@@ -46,6 +46,8 @@ TOKEN = getenv("BOT_TOKEN")
 # All handlers should be attached to the Router (or Dispatcher)
 dp = Dispatcher()
 
+print("TOKEN:", TOKEN)
+
 # @router.message(CommandStart())
 # async def command_start_handler(message: Message) -> None:
 #     """
@@ -71,7 +73,7 @@ async def main() -> None:
         await bot.session.close()
 
 # /start
-@router.message(CommandStart)
+@router.message(START_COMMAND)
 async def start(message: Message) -> None:
     await message.answer(
         f"Вітаю, {message.from_user.full_name}!\n"
@@ -82,11 +84,6 @@ async def add_movie(message: types.Message):
     logging.info(
         f"User {message.from_user.username} викликав команду start"
     )
-
-
-@router.message()
-async def debug(message: Message):
-    print("MESSAGE:", message.text)
 
 # /films
 @router.message(FILMS_COMMAND)
